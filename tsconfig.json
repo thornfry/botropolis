@@ -5,10 +5,9 @@
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "outDir": "dist", // Compiled JavaScript will go here
-    "rootDir": "src", // Specify that all source files are in the src folder
-    "resolveJsonModule": true
+    "forceConsistentCasingInFileNames": true,
+    "outDir": "dist"
   },
-  "include": ["src/**/*.ts"], // Include TypeScript files from the src folder
+  "include": ["src/**/*"],
   "exclude": ["node_modules"]
 }
