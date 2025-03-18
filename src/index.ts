@@ -54,15 +54,6 @@ const commands = [
     .setName("ping")
     .setDescription("Replies with Pong!"),
   new SlashCommandBuilder()
-    .setName("setup-rules")
-    .setDescription("Sets up the rules message with reaction for verification")
-    .addChannelOption(option => 
-      option.setName('channel')
-        .setDescription('The channel to post rules in')
-        .setRequired(true)
-    )
-    .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator),
-  new SlashCommandBuilder()
     .setName("use-existing-rules")
     .setDescription("Use an existing message for rules verification")
     .addChannelOption(option => 
@@ -362,56 +353,6 @@ client.on(Events.InteractionCreate, async (interaction) => {
     if (commandName === "ping") {
       await command.reply("Pong!");
     } 
-    else if (commandName === "setup-rules") {
-      if (!command.memberPermissions?.has(PermissionsBitField.Flags.Administrator)) {
-        return command.reply({ 
-          content: "You don't have permission to use this command.", 
-          flags: MessageFlags.Ephemeral
-        });
-      }
-      
-      await command.deferReply({ flags: MessageFlags.Ephemeral });
-      
-      try {
-        if (!command.guild || command.guild.id !== DISCORD_GUILD_ID) {
-          return command.editReply({ content: "This command must be used in the configured guild." });
-        }
-        
-        const channel = command.options.getChannel('channel') as TextChannel;
-        if (!channel || channel.type !== ChannelType.GuildText) {
-          return command.editReply({ content: "You must select a text channel for the rules message." });
-        }
-        
-        // Create and send rules message
-        const rulesEmbed = new EmbedBuilder()
-          .setColor(0xFF0000)
-          .setTitle('Server Rules')
-          .setDescription('Please read our server rules carefully and react with ✅ to agree and gain access to the server.')
-          .addFields(
-            { name: 'Rule 1', value: 'Be respectful to all members' },
-            { name: 'Rule 2', value: 'No spam or self-promotion' },
-            { name: 'Rule 3', value: 'Follow Discord\'s Terms of Service' }
-          )
-          .setFooter({ text: 'React with ✅ to agree to these rules' });
-        
-        const ruleMessage = await channel.send({ embeds: [rulesEmbed] });
-        await ruleMessage.react(AGREE_EMOJI);
-        
-        // Return detailed information for setting environment variables
-        command.editReply({ 
-          content: `Rules message set up in ${channel}. Please update your environment variables with:
-\`\`\`
-RULES_CHANNEL_ID=${channel.id}
-RULES_MESSAGE_ID=${ruleMessage.id}
-\`\`\`
-
-After updating these values, restart the bot for changes to take effect.`
-        });
-      } catch (error) {
-        console.error('Error setting up rules message:', error);
-        command.editReply({ content: 'There was an error setting up the rules message. Check the console for details.' });
-      }
-    }
     else if (commandName === "use-existing-rules") {
       if (!command.memberPermissions?.has(PermissionsBitField.Flags.Administrator)) {
         return command.reply({ 
@@ -538,7 +479,7 @@ After updating these values, restart the bot for changes to take effect.`
         
         // Check for rules channel
         if (!RULES_CHANNEL_ID) {
-          return command.editReply({ content: "RULES_CHANNEL_ID is not configured. Please set up rules using /setup-rules first." });
+          return command.editReply({ content: "RULES_CHANNEL_ID is not configured. Please set up rules using /use-existing-rules first." });
         }
         
         const rulesChannel = command.guild.channels.cache.get(RULES_CHANNEL_ID);

@@ -41,8 +41,8 @@ Configure the following environment variables in your `.env` file or deployment 
 
 These variables can be set up through bot commands:
 
-- `RULES_CHANNEL_ID` - ID of the channel containing rules (set with `/setup-rules` or `/use-existing-rules`)
-- `RULES_MESSAGE_ID` - ID of the message that users react to (set with `/setup-rules` or `/use-existing-rules`)
+- `RULES_CHANNEL_ID` - ID of the channel containing rules (set with `/use-existing-rules`)
+- `RULES_MESSAGE_ID` - ID of the message that users react to (set with `/use-existing-rules`)
 - `MEMBER_ROLE_ID` - ID of the role to assign to users who accept rules (set with `/setup-roles`)
 - `WELCOME_CHANNEL_ID` - (Optional) ID of the channel to send public welcome messages (set with `/setup-welcome`)
 
@@ -60,7 +60,6 @@ Configure these to include channel mentions in the guided tour message:
 
 ### Bot Commands
 
-- `/setup-rules` - Create a rules message in a specific channel
 - `/use-existing-rules` - Use an existing message for rules verification
 - `/setup-roles` - Specify which role to assign to users who accept rules
 - `/setup-welcome` - Set a channel for welcome messages
