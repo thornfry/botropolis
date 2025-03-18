@@ -44,6 +44,9 @@ const RULES_MESSAGE_ID = process.env.RULES_MESSAGE_ID || '';
 const DISCORD_GUILD_ID = process.env.DISCORD_GUILD_ID || '';
 const AGREE_EMOJI = '✅';
 
+// Feature flags
+const ONBOARDING_ENABLED = process.env.ONBOARDING_ENABLED === 'true';
+
 // Define commands
 const commands = [
   new SlashCommandBuilder()
@@ -55,6 +58,20 @@ const commands = [
     .addChannelOption(option => 
       option.setName('channel')
         .setDescription('The channel to post rules in')
+        .setRequired(true)
+    )
+    .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator),
+  new SlashCommandBuilder()
+    .setName("use-existing-rules")
+    .setDescription("Use an existing message for rules verification")
+    .addChannelOption(option => 
+      option.setName('channel')
+        .setDescription('The channel containing the rules message')
+        .setRequired(true)
+    )
+    .addStringOption(option =>
+      option.setName('message_id')
+        .setDescription('The ID of the rules message')
         .setRequired(true)
     )
     .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator),
@@ -80,6 +97,10 @@ const commands = [
     .setName("join")
     .setDescription("Test command to simulate a member joining the server")
     .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator),
+  new SlashCommandBuilder()
+    .setName("toggle-onboarding")
+    .setDescription("Displays the current onboarding status and instructions to change it")
+    .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator),
 ].map(command => command.toJSON());
 
 const rest = new REST({ version: "10" }).setToken(process.env.DISCORD_BOT_TOKEN || "");
@@ -96,6 +117,19 @@ client.once("ready", async () => {
     }
 
     console.log("Refreshing application commands...");
+    
+    // Delete global commands to prevent duplicates
+    try {
+      console.log("Removing any existing global commands...");
+      await rest.put(
+        Routes.applicationCommands(clientId),
+        { body: [] }
+      );
+      console.log("Global commands cleared");
+    } catch (error) {
+      console.error("Error clearing global commands:", error);
+    }
+    
     // Register commands to the specific guild
     if (guildId) {
       await rest.put(
@@ -120,7 +154,8 @@ DISCORD_GUILD_ID: ${DISCORD_GUILD_ID || 'Not set'}
 RULES_CHANNEL_ID: ${RULES_CHANNEL_ID || 'Not set'}
 MEMBER_ROLE_ID: ${MEMBER_ROLE_ID || 'Not set'}
 WELCOME_CHANNEL_ID: ${WELCOME_CHANNEL_ID || 'Not set'}
-RULES_MESSAGE_ID: ${RULES_MESSAGE_ID || 'Not set'}`);
+RULES_MESSAGE_ID: ${RULES_MESSAGE_ID || 'Not set'}
+ONBOARDING_ENABLED: ${ONBOARDING_ENABLED ? 'Yes' : 'No'}`);
     
   } catch (error) {
     console.error("Error during startup:", error);
@@ -167,14 +202,21 @@ client.on(Events.GuildMemberAdd, async (member: GuildMember) => {
     if (member.guild.id !== DISCORD_GUILD_ID) return;
     
     console.log(`New member joined: ${member.user.tag}`);
-    await sendWelcomeDM(member);
     
-    // If there's a welcome channel, send a public welcome
-    if (WELCOME_CHANNEL_ID) {
-      const welcomeChannel = member.guild.channels.cache.get(WELCOME_CHANNEL_ID) as TextChannel;
-      if (welcomeChannel) {
-        welcomeChannel.send(`Welcome to the server, ${member}! Please check your DMs for information on getting started.`);
+    // Only send welcome DM if onboarding is enabled
+    if (ONBOARDING_ENABLED) {
+      console.log(`Onboarding enabled - sending welcome DM to ${member.user.tag}`);
+      await sendWelcomeDM(member);
+      
+      // If there's a welcome channel, send a public welcome
+      if (WELCOME_CHANNEL_ID) {
+        const welcomeChannel = member.guild.channels.cache.get(WELCOME_CHANNEL_ID) as TextChannel;
+        if (welcomeChannel) {
+          welcomeChannel.send(`Welcome to the server, ${member}! Please check your DMs for information on getting started.`);
+        }
       }
+    } else {
+      console.log(`Onboarding disabled - skipping welcome DM for ${member.user.tag}`);
     }
   } catch (error) {
     console.error(`Error handling new member ${member.user.tag}:`, error);
@@ -313,6 +355,53 @@ After updating these values, restart the bot for changes to take effect.`
         command.editReply({ content: 'There was an error setting up the rules message. Check the console for details.' });
       }
     }
+    else if (commandName === "use-existing-rules") {
+      if (!command.memberPermissions?.has(PermissionsBitField.Flags.Administrator)) {
+        return command.reply({ content: "You don't have permission to use this command.", ephemeral: true });
+      }
+      
+      await command.deferReply({ ephemeral: true });
+      
+      try {
+        if (!command.guild || command.guild.id !== DISCORD_GUILD_ID) {
+          return command.editReply({ content: "This command must be used in the configured guild." });
+        }
+        
+        const channel = command.options.getChannel('channel') as TextChannel;
+        if (!channel || channel.type !== ChannelType.GuildText) {
+          return command.editReply({ content: "You must select a text channel." });
+        }
+        
+        const messageId = command.options.getString('message_id');
+        if (!messageId) {
+          return command.editReply({ content: "Please provide a valid message ID." });
+        }
+        
+        try {
+          // Try to fetch the message to verify it exists
+          const message = await channel.messages.fetch(messageId);
+          
+          // Add reaction to the message
+          await message.react(AGREE_EMOJI);
+          
+          // Return detailed information for setting environment variables
+          command.editReply({ 
+            content: `Using existing message for rules. Please update your environment variables with:
+\`\`\`
+RULES_CHANNEL_ID=${channel.id}
+RULES_MESSAGE_ID=${messageId}
+\`\`\`
+
+After updating these values, restart the bot for changes to take effect.`
+          });
+        } catch (fetchError) {
+          return command.editReply({ content: `Error: Could not find a message with ID ${messageId} in the selected channel. Make sure you have the correct message ID and the message is in the selected channel.` });
+        }
+      } catch (error) {
+        console.error('Error setting up existing rules message:', error);
+        command.editReply({ content: 'There was an error setting up the rules message. Check the console for details.' });
+      }
+    }
     else if (commandName === "setup-roles") {
       if (!command.memberPermissions?.has(PermissionsBitField.Flags.Administrator)) {
         return command.reply({ content: "You don't have permission to use this command.", ephemeral: true });
@@ -404,6 +493,23 @@ After updating this value, restart the bot for changes to take effect.`
         console.error('Error simulating join:', error);
         return command.editReply({ content: `Error simulating join: ${error}` });
       }
+    }
+    else if (commandName === "toggle-onboarding") {
+      if (!command.memberPermissions?.has(PermissionsBitField.Flags.Administrator)) {
+        return command.reply({ content: "You don't have permission to use this command.", ephemeral: true });
+      }
+      
+      await command.reply({ 
+        content: `Onboarding is currently ${ONBOARDING_ENABLED ? 'ENABLED' : 'DISABLED'}.
+
+To ${ONBOARDING_ENABLED ? 'disable' : 'enable'} onboarding, update your environment variable:
+\`\`\`
+ONBOARDING_ENABLED=${ONBOARDING_ENABLED ? 'false' : 'true'}
+\`\`\`
+
+After updating this value, restart the bot for changes to take effect.`,
+        ephemeral: true 
+      });
     }
   }
   
