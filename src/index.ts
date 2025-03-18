@@ -76,6 +76,10 @@ const commands = [
     )
     .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator),
   new SlashCommandBuilder()
+    .setName("test-role")
+    .setDescription("Test role assignment functionality")
+    .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator),
+  new SlashCommandBuilder()
     .setName("setup-roles")
     .setDescription("Configure the member role for users who agree to rules")
     .addRoleOption(option =>
@@ -263,35 +267,59 @@ client.on(Events.MessageReactionAdd, async (reaction, user) => {
   if (user.bot) return;
   
   try {
+    console.log(`Reaction detected: ${reaction.emoji.name} by ${user.tag}`);
+    
     // Check if this is the rules message and the correct emoji
     if (reaction.message.id === RULES_MESSAGE_ID && reaction.emoji.name === AGREE_EMOJI) {
+      console.log(`Correct message (${RULES_MESSAGE_ID}) and emoji (${AGREE_EMOJI}) detected`);
+      
       const guild = client.guilds.cache.get(DISCORD_GUILD_ID);
-      if (!guild) return;
+      if (!guild) {
+        console.error(`Guild not found with ID: ${DISCORD_GUILD_ID}`);
+        return;
+      }
       
       const member = guild.members.cache.get(user.id);
-      if (!member) return;
+      if (!member) {
+        console.error(`Member not found in guild with ID: ${user.id}`);
+        return;
+      }
       
       // Assign the member role
       if (MEMBER_ROLE_ID) {
-        await member.roles.add(MEMBER_ROLE_ID);
-        console.log(`Assigned member role to ${user.tag}`);
-        
-        // Send follow-up DM with guided tour information
-        const dm = await member.createDM();
-        
-        const tourEmbed = new EmbedBuilder()
-          .setColor(0x00FF00)
-          .setTitle(`Welcome to ${guild.name}!`)
-          .setDescription('You now have access to the server! Here\'s a quick guide to help you get started:')
-          .addFields(
-            { name: '💬 General Chat', value: 'Introduce yourself and join the conversation!' },
-            { name: '📢 Announcements', value: 'Check here for important server updates' },
-            { name: '🤝 Help Channel', value: 'If you have any questions, ask here' }
-          )
-          .setFooter({ text: 'We hope you enjoy your time here!' });
-        
-        await dm.send({ embeds: [tourEmbed] });
+        console.log(`Attempting to assign role ${MEMBER_ROLE_ID} to ${user.tag}`);
+        try {
+          await member.roles.add(MEMBER_ROLE_ID);
+          console.log(`Successfully assigned member role to ${user.tag}`);
+          
+          // Send follow-up DM with guided tour information
+          try {
+            const dm = await member.createDM();
+            
+            const tourEmbed = new EmbedBuilder()
+              .setColor(0x00FF00)
+              .setTitle(`Welcome to ${guild.name}!`)
+              .setDescription('You now have access to the server! Here\'s a quick guide to help you get started:')
+              .addFields(
+                { name: '💬 General Chat', value: 'Introduce yourself and join the conversation!' },
+                { name: '📢 Announcements', value: 'Check here for important server updates' },
+                { name: '🤝 Help Channel', value: 'If you have any questions, ask here' }
+              )
+              .setFooter({ text: 'We hope you enjoy your time here!' });
+            
+            await dm.send({ embeds: [tourEmbed] });
+            console.log(`Sent tour DM to ${user.tag}`);
+          } catch (dmError) {
+            console.error(`Error sending tour DM to ${user.tag}:`, dmError);
+          }
+        } catch (roleError) {
+          console.error(`Error assigning role ${MEMBER_ROLE_ID} to ${user.tag}:`, roleError);
+        }
+      } else {
+        console.error('MEMBER_ROLE_ID is not configured');
       }
+    } else {
+      console.log(`Incorrect message or emoji. Expected message ID: ${RULES_MESSAGE_ID}, emoji: ${AGREE_EMOJI}, got: ${reaction.message.id}, ${reaction.emoji.name}`);
     }
   } catch (error) {
     console.error('Error handling reaction:', error);
@@ -400,6 +428,62 @@ After updating these values, restart the bot for changes to take effect.`
       } catch (error) {
         console.error('Error setting up existing rules message:', error);
         command.editReply({ content: 'There was an error setting up the rules message. Check the console for details.' });
+      }
+    }
+    else if (commandName === "test-role") {
+      if (!command.memberPermissions?.has(PermissionsBitField.Flags.Administrator)) {
+        return command.reply({ content: "You don't have permission to use this command.", ephemeral: true });
+      }
+      
+      await command.deferReply({ ephemeral: true });
+      
+      try {
+        if (!command.guild || command.guild.id !== DISCORD_GUILD_ID) {
+          return command.editReply({ content: "This command must be used in the configured guild." });
+        }
+        
+        if (!MEMBER_ROLE_ID) {
+          return command.editReply({ content: "MEMBER_ROLE_ID is not configured. Please set up a role using /setup-roles first." });
+        }
+        
+        const member = command.member as GuildMember;
+        
+        try {
+          // Check if the role exists
+          const role = command.guild.roles.cache.get(MEMBER_ROLE_ID);
+          if (!role) {
+            return command.editReply({ content: `Role with ID ${MEMBER_ROLE_ID} not found in this server. Please check your configuration.` });
+          }
+          
+          // Get the bot's role
+          const botMember = command.guild.members.cache.get(client.user!.id);
+          if (!botMember) {
+            return command.editReply({ content: "Could not find the bot in this server. This is an unexpected error." });
+          }
+          
+          // Check role hierarchy
+          const botHighestRole = botMember.roles.highest;
+          if (botHighestRole.position <= role.position) {
+            return command.editReply({ 
+              content: `⚠️ Role hierarchy issue: The bot's highest role (${botHighestRole.name}) is positioned at or below the role it's trying to assign (${role.name}). Please move the bot's role above the member role in Server Settings > Roles.`
+            });
+          }
+          
+          // Try to assign the role
+          await member.roles.add(MEMBER_ROLE_ID);
+          
+          return command.editReply({ 
+            content: `✅ Successfully assigned the role ${role.name} to you! The role assignment system is working correctly.`
+          });
+        } catch (error) {
+          console.error('Error in test-role command:', error);
+          return command.editReply({ 
+            content: `❌ Error assigning role: ${error}\n\nPossible issues:\n- The bot doesn't have the "Manage Roles" permission\n- The role hierarchy is incorrect (bot's role must be above the role it tries to assign)\n- The role ID is invalid`
+          });
+        }
+      } catch (error) {
+        console.error('Error in test-role command:', error);
+        return command.editReply({ content: 'An unexpected error occurred during role testing.' });
       }
     }
     else if (commandName === "setup-roles") {
