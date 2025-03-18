@@ -80,6 +80,10 @@ const commands = [
     .setDescription("Test role assignment functionality")
     .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator),
   new SlashCommandBuilder()
+    .setName("check-permissions")
+    .setDescription("Check the bot's permissions in the rules channel")
+    .setDefaultMemberPermissions(PermissionsBitField.Flags.Administrator),
+  new SlashCommandBuilder()
     .setName("setup-roles")
     .setDescription("Configure the member role for users who agree to rules")
     .addRoleOption(option =>
@@ -142,7 +146,7 @@ client.once("ready", async () => {
       );
       console.log(`Slash commands registered for guild ${guildId}`);
     } else {
-      console.warn("No DISCORD_GUILD_ID provided. Skipping command registration.");
+      console.log("No DISCORD_GUILD_ID provided. Skipping command registration.");
     }
     
     console.log(`Logged in as ${client.user?.tag}`);
@@ -169,31 +173,51 @@ ONBOARDING_ENABLED: ${ONBOARDING_ENABLED ? 'Yes' : 'No'}`);
 // Function to set up reaction collectors for the rules message
 async function setupRuleReactions() {
   try {
+    console.log(`Starting setupRuleReactions with DISCORD_GUILD_ID=${DISCORD_GUILD_ID}, RULES_CHANNEL_ID=${RULES_CHANNEL_ID}, RULES_MESSAGE_ID=${RULES_MESSAGE_ID}`);
+    
     const guild = client.guilds.cache.get(DISCORD_GUILD_ID);
     if (!guild) {
-      console.warn(`Guild with ID ${DISCORD_GUILD_ID} not found`);
+      console.log(`Guild with ID ${DISCORD_GUILD_ID} not found`);
       return;
     }
+    console.log(`Found guild: ${guild.name} (${guild.id})`);
     
-    const rulesChannel = guild.channels.cache.get(RULES_CHANNEL_ID) as TextChannel;
-    if (!rulesChannel) {
-      console.warn(`Rules channel with ID ${RULES_CHANNEL_ID} not found`);
-      return;
+    try {
+      const rulesChannel = guild.channels.cache.get(RULES_CHANNEL_ID) as TextChannel;
+      if (!rulesChannel) {
+        console.log(`Rules channel with ID ${RULES_CHANNEL_ID} not found in guild ${guild.name}`);
+        return;
+      }
+      console.log(`Found rules channel: ${rulesChannel.name} (${rulesChannel.id})`);
+      
+      try {
+        console.log(`Attempting to fetch message with ID ${RULES_MESSAGE_ID} from channel ${rulesChannel.name}`);
+        const rulesMessage = await rulesChannel.messages.fetch(RULES_MESSAGE_ID);
+        if (!rulesMessage) {
+          console.log(`Rules message with ID ${RULES_MESSAGE_ID} not found in channel ${rulesChannel.name}`);
+          return;
+        }
+        console.log(`Found rules message with content: ${rulesMessage.content.substring(0, 50)}...`);
+        
+        // Add the reaction to the message if it doesn't already have it
+        const reactions = rulesMessage.reactions.cache;
+        if (!reactions.has(AGREE_EMOJI)) {
+          console.log(`Adding ${AGREE_EMOJI} reaction to rules message`);
+          await rulesMessage.react(AGREE_EMOJI);
+          console.log(`Successfully added reaction to rules message`);
+        } else {
+          console.log(`Reaction ${AGREE_EMOJI} already exists on rules message`);
+        }
+        
+        console.log('Rules message reaction collector set up successfully');
+      } catch (messageError) {
+        console.error(`Error fetching or reacting to rules message: ${messageError}`);
+        console.log('This may be due to missing "Read Message History" permission or the message no longer exists');
+      }
+    } catch (channelError) {
+      console.error(`Error accessing rules channel: ${channelError}`);
+      console.log('This may be due to missing "View Channel" permission');
     }
-    
-    const rulesMessage = await rulesChannel.messages.fetch(RULES_MESSAGE_ID);
-    if (!rulesMessage) {
-      console.warn(`Rules message with ID ${RULES_MESSAGE_ID} not found`);
-      return;
-    }
-    
-    // Add the reaction to the message if it doesn't already have it
-    const reactions = rulesMessage.reactions.cache;
-    if (!reactions.has(AGREE_EMOJI)) {
-      await rulesMessage.react(AGREE_EMOJI);
-    }
-    
-    console.log('Rules message reaction collector set up successfully');
   } catch (error) {
     console.error('Error setting up rules message reactions:', error);
   }
@@ -484,6 +508,99 @@ After updating these values, restart the bot for changes to take effect.`
       } catch (error) {
         console.error('Error in test-role command:', error);
         return command.editReply({ content: 'An unexpected error occurred during role testing.' });
+      }
+    }
+    else if (commandName === "check-permissions") {
+      if (!command.memberPermissions?.has(PermissionsBitField.Flags.Administrator)) {
+        return command.reply({ content: "You don't have permission to use this command.", ephemeral: true });
+      }
+      
+      await command.deferReply({ ephemeral: true });
+      
+      try {
+        if (!command.guild || command.guild.id !== DISCORD_GUILD_ID) {
+          return command.editReply({ content: "This command must be used in the configured guild." });
+        }
+        
+        // Check for rules channel
+        if (!RULES_CHANNEL_ID) {
+          return command.editReply({ content: "RULES_CHANNEL_ID is not configured. Please set up rules using /setup-rules first." });
+        }
+        
+        const rulesChannel = command.guild.channels.cache.get(RULES_CHANNEL_ID);
+        if (!rulesChannel) {
+          return command.editReply({ content: `Rules channel with ID ${RULES_CHANNEL_ID} not found in this server. Please check your configuration.` });
+        }
+        
+        // Make sure it's a text channel
+        if (rulesChannel.type !== ChannelType.GuildText) {
+          return command.editReply({ content: `Channel with ID ${RULES_CHANNEL_ID} is not a text channel. Please use a text channel for rules.` });
+        }
+        
+        const textChannel = rulesChannel as TextChannel;
+        
+        // Check bot's permissions in the rules channel
+        const botMember = command.guild.members.me;
+        if (!botMember) {
+          return command.editReply({ content: "Could not get the bot's member object. This is unexpected." });
+        }
+        
+        const channelPermissions = textChannel.permissionsFor(botMember);
+        if (!channelPermissions) {
+          return command.editReply({ content: "Could not get permissions for the bot in the rules channel." });
+        }
+        
+        // Check essential permissions
+        const permissionChecks = [
+          { name: "View Channel", has: channelPermissions.has(PermissionsBitField.Flags.ViewChannel) },
+          { name: "Send Messages", has: channelPermissions.has(PermissionsBitField.Flags.SendMessages) },
+          { name: "Read Message History", has: channelPermissions.has(PermissionsBitField.Flags.ReadMessageHistory) },
+          { name: "Add Reactions", has: channelPermissions.has(PermissionsBitField.Flags.AddReactions) },
+          { name: "Manage Roles", has: channelPermissions.has(PermissionsBitField.Flags.ManageRoles) },
+        ];
+        
+        const missingPermissions = permissionChecks.filter(p => !p.has).map(p => p.name);
+        
+        if (missingPermissions.length > 0) {
+          return command.editReply({ 
+            content: `⚠️ The bot is missing the following permissions in the rules channel:
+- ${missingPermissions.join("\n- ")}
+
+Please add these permissions to fix issues with the rules reaction system.`
+          });
+        } else {
+          // If we can check the message too, do it
+          if (RULES_MESSAGE_ID) {
+            try {
+              await textChannel.messages.fetch(RULES_MESSAGE_ID);
+              return command.editReply({ 
+                content: `✅ The bot has all required permissions in the rules channel and can access the rules message.
+                
+The rule reaction system should work properly now. If you still have issues, please check the role hierarchy in Server Settings > Roles.`
+              });
+            } catch (error) {
+              return command.editReply({ 
+                content: `⚠️ The bot has all required permissions in the rules channel, but cannot access the rules message.
+                
+This might be because:
+- The message ID is incorrect
+- The message has been deleted
+- There's an unexpected API error
+
+Error details: ${error}`
+              });
+            }
+          } else {
+            return command.editReply({ 
+              content: `✅ The bot has all required permissions in the rules channel.
+              
+The rule reaction system should work properly after setting up a rules message.`
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Error in check-permissions command:', error);
+        return command.editReply({ content: 'An unexpected error occurred while checking permissions.' });
       }
     }
     else if (commandName === "setup-roles") {
