@@ -18,7 +18,8 @@ import {
   PermissionsBitField,
   Guild,
   Message,
-  ChatInputCommandInteraction
+  ChatInputCommandInteraction,
+  MessageFlags
 } from "discord.js";
 import dotenv from "dotenv";
 
@@ -362,10 +363,13 @@ client.on(Events.InteractionCreate, async (interaction) => {
     } 
     else if (commandName === "setup-rules") {
       if (!command.memberPermissions?.has(PermissionsBitField.Flags.Administrator)) {
-        return command.reply({ content: "You don't have permission to use this command.", ephemeral: true });
+        return command.reply({ 
+          content: "You don't have permission to use this command.", 
+          flags: MessageFlags.Ephemeral
+        });
       }
       
-      await command.deferReply({ ephemeral: true });
+      await command.deferReply({ flags: MessageFlags.Ephemeral });
       
       try {
         if (!command.guild || command.guild.id !== DISCORD_GUILD_ID) {
@@ -409,10 +413,13 @@ After updating these values, restart the bot for changes to take effect.`
     }
     else if (commandName === "use-existing-rules") {
       if (!command.memberPermissions?.has(PermissionsBitField.Flags.Administrator)) {
-        return command.reply({ content: "You don't have permission to use this command.", ephemeral: true });
+        return command.reply({ 
+          content: "You don't have permission to use this command.", 
+          flags: MessageFlags.Ephemeral 
+        });
       }
       
-      await command.deferReply({ ephemeral: true });
+      await command.deferReply({ flags: MessageFlags.Ephemeral });
       
       try {
         if (!command.guild || command.guild.id !== DISCORD_GUILD_ID) {
@@ -456,10 +463,13 @@ After updating these values, restart the bot for changes to take effect.`
     }
     else if (commandName === "test-role") {
       if (!command.memberPermissions?.has(PermissionsBitField.Flags.Administrator)) {
-        return command.reply({ content: "You don't have permission to use this command.", ephemeral: true });
+        return command.reply({ 
+          content: "You don't have permission to use this command.", 
+          flags: MessageFlags.Ephemeral 
+        });
       }
       
-      await command.deferReply({ ephemeral: true });
+      await command.deferReply({ flags: MessageFlags.Ephemeral });
       
       try {
         if (!command.guild || command.guild.id !== DISCORD_GUILD_ID) {
@@ -512,10 +522,13 @@ After updating these values, restart the bot for changes to take effect.`
     }
     else if (commandName === "check-permissions") {
       if (!command.memberPermissions?.has(PermissionsBitField.Flags.Administrator)) {
-        return command.reply({ content: "You don't have permission to use this command.", ephemeral: true });
+        return command.reply({ 
+          content: "You don't have permission to use this command.", 
+          flags: MessageFlags.Ephemeral 
+        });
       }
       
-      await command.deferReply({ ephemeral: true });
+      await command.deferReply({ flags: MessageFlags.Ephemeral });
       
       try {
         if (!command.guild || command.guild.id !== DISCORD_GUILD_ID) {
@@ -605,10 +618,13 @@ The rule reaction system should work properly after setting up a rules message.`
     }
     else if (commandName === "setup-roles") {
       if (!command.memberPermissions?.has(PermissionsBitField.Flags.Administrator)) {
-        return command.reply({ content: "You don't have permission to use this command.", ephemeral: true });
+        return command.reply({ 
+          content: "You don't have permission to use this command.", 
+          flags: MessageFlags.Ephemeral 
+        });
       }
       
-      await command.deferReply({ ephemeral: true });
+      await command.deferReply({ flags: MessageFlags.Ephemeral });
       
       try {
         if (!command.guild || command.guild.id !== DISCORD_GUILD_ID) {
@@ -636,10 +652,13 @@ After updating this value, restart the bot for changes to take effect.`
     }
     else if (commandName === "setup-welcome") {
       if (!command.memberPermissions?.has(PermissionsBitField.Flags.Administrator)) {
-        return command.reply({ content: "You don't have permission to use this command.", ephemeral: true });
+        return command.reply({ 
+          content: "You don't have permission to use this command.", 
+          flags: MessageFlags.Ephemeral 
+        });
       }
       
-      await command.deferReply({ ephemeral: true });
+      await command.deferReply({ flags: MessageFlags.Ephemeral });
       
       try {
         if (!command.guild || command.guild.id !== DISCORD_GUILD_ID) {
@@ -666,7 +685,7 @@ After updating this value, restart the bot for changes to take effect.`
       }
     }
     else if (commandName === "join") {
-      await command.deferReply({ ephemeral: true });
+      await command.deferReply({ flags: MessageFlags.Ephemeral });
       
       try {
         if (!command.guild || command.guild.id !== DISCORD_GUILD_ID) {
@@ -697,7 +716,10 @@ After updating this value, restart the bot for changes to take effect.`
     }
     else if (commandName === "toggle-onboarding") {
       if (!command.memberPermissions?.has(PermissionsBitField.Flags.Administrator)) {
-        return command.reply({ content: "You don't have permission to use this command.", ephemeral: true });
+        return command.reply({ 
+          content: "You don't have permission to use this command.", 
+          flags: MessageFlags.Ephemeral 
+        });
       }
       
       await command.reply({ 
@@ -709,7 +731,7 @@ ONBOARDING_ENABLED=${ONBOARDING_ENABLED ? 'false' : 'true'}
 \`\`\`
 
 After updating this value, restart the bot for changes to take effect.`,
-        ephemeral: true 
+        flags: MessageFlags.Ephemeral
       });
     }
   }
@@ -718,12 +740,15 @@ After updating this value, restart the bot for changes to take effect.`,
   if (interaction.isButton()) {
     if (interaction.customId === 'view_rules') {
       if (!RULES_CHANNEL_ID) {
-        return interaction.reply({ content: "The server has not set up rules yet.", ephemeral: true });
+        return interaction.reply({ 
+          content: "The server has not set up rules yet.", 
+          flags: MessageFlags.Ephemeral 
+        });
       }
       
       await interaction.reply({
         content: `Please visit <#${RULES_CHANNEL_ID}> to read our rules. React with ✅ on the rules message to gain access to the rest of the server.`,
-        ephemeral: true
+        flags: MessageFlags.Ephemeral
       });
     }
   }
