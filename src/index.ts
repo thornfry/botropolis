@@ -326,9 +326,10 @@ client.on(Events.MessageReactionAdd, async (reaction, user) => {
               .setTitle(`Welcome to ${guild.name}!`)
               .setDescription('You now have access to the server! Here\'s a quick guide to help you get started:')
               .addFields(
-                { name: '💬 General Chat', value: 'Introduce yourself and join the conversation!' },
-                { name: '📢 Announcements', value: 'Check here for important server updates' },
-                { name: '🤝 Help Channel', value: 'If you have any questions, ask here' }
+                { name: '💬 Chat', value: `Visit <#1235699795902070915> to introduce yourself and join the conversation!` },
+                { name: '📢 Stay Updated', value: `Check <#1339329788451749979> for important server updates` },
+                { name: '❓ FAQ', value: `Browse <#1339329575448084490> for answers to frequently asked questions` },
+                { name: '📖 Directory', value: `Find all our channels in <#1341455800199024773>` }
               )
               .setFooter({ text: 'We hope you enjoy your time here!' });
             
